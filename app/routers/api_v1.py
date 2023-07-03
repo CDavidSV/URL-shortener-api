@@ -14,6 +14,13 @@ class CreateURL(BaseModel):
     back_half: str
     original_URL: str
 
+class ShortURL(BaseModel):
+    title: str
+    back_half: str
+    original_URL: str
+    creation_date: str
+    times_visited: int
+
 DB_NAME = os.getenv("DB_NAME")
 router = APIRouter()
 
@@ -71,11 +78,49 @@ async def create_shortened_url(current_user: Annotated[auth.User, Depends(auth.g
 
 @router.delete("/api/v1/urls/delete")
 async def delete_shortened_url(current_user: Annotated[auth.User, Depends(auth.get_current_user)], url_id: str):
-    return url_id
+    # Find the url in the database.
+    row = db.execute_query(DB_NAME, 'SELECT * FROM ShortURL WHERE ShortURLId = ?', (url_id,))
+
+    # verify that the url exists and if the user has permission to delete it.
+    if len(row) < 1:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This url does not exist"
+        )
+
+    if not row[0][5] == current_user.username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You do not have permission to delete this url"
+        )
+    
+    # Delete the url from the database.
+    db.execute_query(DB_NAME, "DELETE FROM ShortURL WHERE ShortURLId = ?", (url_id,), True)
+    return { "detail": "URL deleted successfully" }
 
 @router.get("/api/v1/urls")
 async def get_qr(current_user: Annotated[auth.User, Depends(auth.get_current_user)]):
-    return None
+    rows = db.execute_query(DB_NAME, "SELECT * FROM ShortURL WHERE User = ?", (current_user.username,))
+
+    if len(rows) < 1:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="You have not created any short urls"
+        )
+    
+    urls = []
+    for row in rows:
+        urls.append(
+            ShortURL(
+                title=row[0],
+                back_half=row[2],
+                original_URL=row[1],
+                creation_date=row[3],
+                times_visited=row[4]
+        )
+    )
+    
+    return { "detail": "success", "item_count": len(urls),"short_urls": urls, "user": current_user.username }
 
 @router.get("/api/v1/urls/{url_id}/qr")
 async def get_qr(current_user: Annotated[auth.User, Depends(auth.get_current_user)], url_id: str):
@@ -83,4 +128,20 @@ async def get_qr(current_user: Annotated[auth.User, Depends(auth.get_current_use
 
 @router.get("/api/v1/urls/{url_id}/info")
 async def get_short_url_info(current_user: Annotated[auth.User, Depends(auth.get_current_user)], url_id: str):
-    return url_id
+    row = db.execute_query(DB_NAME, "SELECT * FROM ShortURL WHERE ShortURLId = ?", (url_id,))
+
+    if len(row) < 1:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This url does not exist"
+        )
+    
+    short_url = ShortURL(
+        title=row[0][0],
+        back_half=row[0][2],
+        original_URL=row[0][1],
+        creation_date=row[0][3],
+        times_visited=row[0][4]
+    )
+
+    return { "detail": "success", "data": short_url, "owner": row[0][5] } 
