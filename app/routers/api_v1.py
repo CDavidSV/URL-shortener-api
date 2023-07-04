@@ -1,6 +1,7 @@
 from typing import Annotated
 from datetime import date
 from fastapi import APIRouter, Depends, status, HTTPException
+from starlette.responses import StreamingResponse
 from pydantic import BaseModel
 from app import auth
 from .. import database as db
@@ -8,6 +9,8 @@ from re import match
 from random import choice
 
 import os
+import io
+import qrcode
 
 class CreateURL(BaseModel):
     title: str | None
@@ -124,7 +127,23 @@ async def get_qr(current_user: Annotated[auth.User, Depends(auth.get_current_use
 
 @router.get("/api/v1/urls/{url_id}/qr")
 async def get_qr(current_user: Annotated[auth.User, Depends(auth.get_current_user)], url_id: str):
-    return url_id
+    short_url = db.execute_query(DB_NAME, 'SELECT * FROM ShortURL WHERE ShortURLID = ?', (url_id,))
+
+    if len(short_url) < 1:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This url does not exist"
+        )
+
+    qr = qrcode.QRCode()
+    qr.add_data(short_url[0][1])
+    qr_img = qr.make_image(fill_color="black", back_color="white")
+
+    img_io = io.BytesIO()
+    qr_img.save(img_io, "PNG")
+    img_io.seek(0)
+
+    return StreamingResponse(img_io, media_type="image/png")
 
 @router.get("/api/v1/urls/{url_id}/info")
 async def get_short_url_info(current_user: Annotated[auth.User, Depends(auth.get_current_user)], url_id: str):
