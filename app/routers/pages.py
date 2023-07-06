@@ -16,12 +16,12 @@ async def root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 @router.get("/login")
-async def login():
-    return None
+async def login(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
 
-@router.get("/register")
-async def register():
-    return None
+@router.get("/signup")
+async def register(request: Request):
+    return templates.TemplateResponse("sign-up.html", {"request": request})
 
 @router.get("/links")
 async def links(current_user: Annotated[auth.User, Depends(auth.get_current_user)]):
