@@ -12,7 +12,10 @@ templates = Jinja2Templates(directory="app/templates")
 DB_NAME = os.getenv("DB_NAME")
 
 @router.get("/", response_class=HTMLResponse)
-async def root(request: Request):
+async def root(request: Request, current_user: auth.User = Depends(auth.get_current_user)):
+    if not current_user:
+        return RedirectResponse(url="/login", status_code=302)
+    
     return templates.TemplateResponse("index.html", {"request": request})
 
 @router.get("/login")
@@ -22,10 +25,6 @@ async def login(request: Request):
 @router.get("/signup")
 async def register(request: Request):
     return templates.TemplateResponse("sign-up.html", {"request": request})
-
-@router.get("/links")
-async def links(current_user: Annotated[auth.User, Depends(auth.get_current_user)]):
-    return None
 
 @router.get("/{back_half_id}")
 async def access_page(back_half_id: str, request: Request):

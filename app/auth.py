@@ -2,10 +2,11 @@ from datetime import datetime, timedelta
 from hashlib import sha256
 from jose import JWTError, jwt
 from typing import Annotated
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from fastapi.security import OAuth2PasswordBearer
 from . import database as db
+from . import main
 
 import os
 
@@ -76,7 +77,17 @@ def create_access_token(data: dict, expiration_delta: timedelta | None = None):
 
     return encoded_jwt # Return the token for that user
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+async def get_current_user(req: Request):
+    token = req.headers.get("Authorization")
+
+    if not token or not token.startswith("Bearer "):
+        token = req.cookies.get("AT")
+    else:
+        token = token.replace("Bearer ", "")
+
+    if not token:
+        raise main.NotAuthenticated("Not Authenticated")
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
