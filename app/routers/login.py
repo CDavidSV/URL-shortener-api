@@ -1,4 +1,4 @@
-from datetime import timedelta, date
+from datetime import timedelta, date, datetime, timezone
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -38,7 +38,7 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], resp
     )
 
     # Set the JWT token as a cookie
-    response.set_cookie(key="AT", value=access_token, httponly=True)
+    response.set_cookie(key="AT", value=access_token, httponly=True, expires=datetime.now(timezone.utc) + access_token_expires)
     return {"token": access_token, "token-type": "bearer"}
 
 @router.post("/user/create")
@@ -68,5 +68,5 @@ async def create_new_user(new_user: NewUserData, response: Response):
     )
 
     # Set the JWT token as a cookie
-    response.set_cookie(key="AT", value=access_token, httponly=True)
+    response.set_cookie(key="AT", value=access_token, httponly=True, expires=datetime.now(timezone.utc) + access_token_expires)
     return {"detail": "Account creation successfull", "token": access_token, "token_type": "bearer"}
