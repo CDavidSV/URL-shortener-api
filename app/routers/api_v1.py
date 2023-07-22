@@ -49,7 +49,10 @@ def new_url_identifier():
 
     return identifier
 
-# Shortened url c     reation and deletion.
+def validate_user_permision(usernameCurrent, usernameOwner):
+    return usernameCurrent == usernameOwner
+
+# Shortened url creation and deletion.
 @router.post("/api/v1/urls/create")
 async def create_shortened_url(current_user: Annotated[auth.User, Depends(auth.get_current_user)], new_url_info: CreateURL):
     creation_date = str(date.today().year) + "-" + str(date.today().month) + "-" + str(date.today().day)
@@ -90,11 +93,11 @@ async def delete_shortened_url(current_user: Annotated[auth.User, Depends(auth.g
             status_code=status.HTTP_404_NOT_FOUND,
             detail="This url does not exist"
         )
-
-    if not row[0][5] == current_user.username:
+    
+    if not validate_user_permision(current_user.username, row[0][5]):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="You do not have permission to delete this url"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unable to delete this url"
         )
     
     # Delete the url from the database.
@@ -102,7 +105,7 @@ async def delete_shortened_url(current_user: Annotated[auth.User, Depends(auth.g
     return { "detail": "URL deleted successfully" }
 
 @router.get("/api/v1/urls")
-async def get_qr(current_user: Annotated[auth.User, Depends(auth.get_current_user)]):
+async def get_urls(current_user: Annotated[auth.User, Depends(auth.get_current_user)]):
     rows = db.execute_query(DB_NAME, "SELECT * FROM ShortURL WHERE User = ?", (current_user.username,))
 
     if len(rows) < 1:
