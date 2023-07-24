@@ -114,10 +114,11 @@ Replace `YOUR_ACCESS_TOKEN` with the token received from the login or account cr
 | Endpoint                                    | Method | Description                                          |
 |---------------------------------------------|--------|------------------------------------------------------|
 | `/api/v1/urls/create`                       | POST   | Create a shortened URL.                              |
-| `/api/v1/urls/delete`                       | DELETE | Delete a previously created shortened URL.          |
+| `/api/v1/urls/delete`                       | DELETE | Delete a previously created shortened URL.           |
 | `/api/v1/urls`                              | GET    | Get a list of short URLs created by the current user.|
 | `/api/v1/urls/{url_id}/qr`                  | GET    | Get a QR code image for a specific short URL.        |
 | `/api/v1/urls/{url_id}/info`                | GET    | Get information about a specific short URL.          |
+| `/api/v1/urls/update`                       | POST   | Update the data of an existing URL.                 |
 
 
 ### 1. Create shortened URL
@@ -208,5 +209,27 @@ JSON Response:
     "times_visited": "Number of times the short URL has been visited"
   },
   "owner": "Username of the short URL creator"
+}
+```
+
+### 6. Update a shrot URL
+
+**Endpoint:** `POST /api/v1/urls/update`
+
+Request:
+
+- Method: GET
+
+JSON Response:
+```JSON
+{
+  "detail": "Data updated",
+  "updatedData": {
+    "title": "Title of the short URL",
+    "back_half": "Short URL identifier",
+    "original_URL": "Original long URL",
+    "creation_date": "Date the short URL was created (format: 'YYYY-MM-DD')",
+    "times_visited": "Number of times the short URL has been visited"
+  }
 }
 ```

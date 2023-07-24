@@ -12,10 +12,19 @@ import os
 import io
 import qrcode
 
-class CreateURL(BaseModel):
+class CreateURLData(BaseModel):
     title: str | None
-    back_half: str
+    back_half: str | None
     original_URL: str
+
+class UpdateURLData(BaseModel):
+    title: str | None
+    back_half: str | None
+    original_URL: str | None 
+
+class UpdateShortURL(BaseModel):
+    id: str
+    content: UpdateURLData
 
 class ShortURL(BaseModel):
     title: str
@@ -52,15 +61,18 @@ def new_url_identifier():
 def validate_user_permision(usernameCurrent, usernameOwner):
     return usernameCurrent == usernameOwner
 
+def is_empty_or_None(string: str):
+    return string is None or string == ""
+
 # Shortened url creation and deletion.
 @router.post("/api/v1/urls/create")
-async def create_shortened_url(current_user: Annotated[auth.User, Depends(auth.get_current_user)], new_url_info: CreateURL):
+async def create_shortened_url(current_user: Annotated[auth.User, Depends(auth.get_current_user)], new_url_info: CreateURLData):
     creation_date = str(date.today().year) + "-" + str(date.today().month) + "-" + str(date.today().day)
     
-    if new_url_info.back_half is None or new_url_info.back_half == "":
+    if is_empty_or_None(new_url_info.back_half):
         # Create a random identifier for the back_half of the new short url.
         identifier = new_url_identifier()
-        db.execute_query(DB_NAME, "INSERT INTO ShortURL values(?,?,?,?,?)", (new_url_info.title, new_url_info.original_URL, identifier, creation_date, 0,), True)
+        db.execute_query(DB_NAME, "INSERT INTO ShortURL values(?,?,?,?,?,?)", (new_url_info.title, new_url_info.original_URL, identifier, creation_date, 0, current_user.username), True)
         return { "detail": "Short URL created successfully" }
     
     if not validate_back_half(new_url_info.back_half):
@@ -78,7 +90,7 @@ async def create_shortened_url(current_user: Annotated[auth.User, Depends(auth.g
         )
 
     # Create the new short url.
-    db.execute_query(DB_NAME, "INSERT INTO ShortURL values(?,?,?,?,?)", (new_url_info.title, new_url_info.original_URL, new_url_info.back_half, creation_date, 0,), True)
+    db.execute_query(DB_NAME, "INSERT INTO ShortURL values(?,?,?,?,?,?)", ("" if is_empty_or_None(new_url_info.title) else new_url_info.title, new_url_info.original_URL, new_url_info.back_half, creation_date, 0, current_user.username), True)
 
     return { "detail": "Short URL created successfully" }
 
@@ -103,6 +115,47 @@ async def delete_shortened_url(current_user: Annotated[auth.User, Depends(auth.g
     # Delete the url from the database.
     db.execute_query(DB_NAME, "DELETE FROM ShortURL WHERE ShortURLId = ?", (url_id,), True)
     return { "detail": "URL deleted successfully" }
+
+@router.post("/api/v1/urls/update")
+async def update_url(current_user: Annotated[auth.User, Depends(auth.get_current_user)], data: UpdateShortURL):
+    row = db.execute_query(DB_NAME, 'SELECT * FROM ShortURL WHERE ShortURLId = ?', (data.id,))
+
+    if len(row) < 1:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This url does not exist"
+        )
+    
+    if not validate_user_permision(current_user.username, row[0][5]):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unable to delete this url"
+        )
+    
+    if data.content.back_half and not validate_back_half(data.content.back_half):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Back half of URL must be alphanumeric between 1 and 255 characters"
+        )
+
+    short_url = ShortURL(
+        title=row[0][0],
+        back_half=row[0][2],
+        original_URL=row[0][1],
+        creation_date=row[0][3],
+        times_visited=row[0][4]
+    )
+    
+    updated_short_url = ShortURL(
+        title=data.content.title if not is_empty_or_None(data.content.title) else short_url.title,
+        back_half=data.content.back_half if not is_empty_or_None(data.content.back_half) else short_url.back_half,
+        original_URL=data.content.original_URL if not is_empty_or_None(data.content.original_URL) else short_url.original_URL,
+        creation_date=short_url.creation_date,
+        times_visited=short_url.times_visited
+    )
+
+    db.execute_query(DB_NAME, "UPDATE ShortURL SET Title = ?, OriginalUrl = ?, ShortURLId = ? WHERE ShortURLId = ?", (updated_short_url.title, updated_short_url.original_URL, updated_short_url.back_half, data.id), True)
+    return { "detail": "Data updated", "updatedData": updated_short_url }
 
 @router.get("/api/v1/urls")
 async def get_urls(current_user: Annotated[auth.User, Depends(auth.get_current_user)]):
